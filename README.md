@@ -58,6 +58,14 @@ Das hier ist der Teil, der ein Abo rechtfertigt — reines Scannen kann jedes Ha
 
 Neue Dateien dafür: `src/contentDetector.ts` (Erkennungslogik), `src/export.ts` (CSV-Erzeugung), `src/screens/BatchSummaryScreen.tsx`.
 
+## Design/UX — umgesetzt ✅
+
+- **App-Icon, Adaptive Icon (Android) & Splash Screen**: generierte Assets unter `assets/`, in `app.json` verknüpft
+- **Onboarding**: 3 Slides beim allerersten Start (`src/screens/OnboardingScreen.tsx`), wird per AsyncStorage-Flag nur einmal gezeigt — danach direkt zum Scan-Screen
+- **Animierte Scan-Linie**: läuft im Kamera-Rahmen auf und ab, solange kein Code erkannt wird — macht den Screen deutlich lebendiger als ein statischer Rahmen
+
+Die Icon-Assets sind bewusst simpel gehalten (Scan-Rahmen-Motiv in Blau/Dunkelblau) — ein professionelles Branding würdest du eher mit einem Designer oder Tool wie Figma verfeinern, bevor du live gehst.
+
 ## Ideen für Phase 3 (brauchen einen eigenen Server bzw. native Module)
 
 - **Cloud-Sync** zwischen Geräten (z. B. Supabase, Firebase) — erfordert Backend + Login
