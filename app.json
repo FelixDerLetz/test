@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Scan App",
+    "slug": "scan-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.scanapp",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Diese App benötigt Zugriff auf die Kamera, um QR-Codes und Barcodes zu scannen."
+      }
+    },
+    "android": {
+      "package": "com.yourcompany.scanapp",
+      "permissions": ["CAMERA"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F172A"
+      }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Diese App benötigt Zugriff auf die Kamera, um QR-Codes und Barcodes zu scannen."
+        }
+      ]
+    ]
+  }
+}
