@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Pressable,
   Dimensions,
+  Animated,
 } from "react-native";
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
 import * as Haptics from "expo-haptics";
@@ -14,6 +15,39 @@ import { ScanType } from "../types";
 
 const { width } = Dimensions.get("window");
 const FRAME_SIZE = width * 0.7;
+
+function ScanLine({ active }: { active: boolean }) {
+  const translateY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!active) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(translateY, {
+          toValue: FRAME_SIZE - 4,
+          duration: 1600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 1600,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [active, translateY]);
+
+  if (!active) return null;
+
+  return (
+    <Animated.View
+      style={[styles.scanLine, { transform: [{ translateY }] }]}
+      pointerEvents="none"
+    />
+  );
+}
 
 interface Props {
   onScanned: (value: string, type: ScanType) => void;
@@ -109,7 +143,9 @@ export default function ScanScreen({
         <View style={styles.overlayRow} />
         <View style={styles.overlayMiddleRow}>
           <View style={styles.overlaySide} />
-          <View style={[styles.scanFrame, isPaused && styles.scanFrameActive]} />
+          <View style={[styles.scanFrame, isPaused && styles.scanFrameActive]}>
+            <ScanLine active={!isPaused} />
+          </View>
           <View style={styles.overlaySide} />
         </View>
         <View style={styles.overlayRow} />
@@ -197,8 +233,18 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#3B82F6",
     borderRadius: 24,
+    overflow: "hidden",
   },
   scanFrameActive: { borderColor: "#22C55E" },
+  scanLine: {
+    height: 3,
+    width: "100%",
+    backgroundColor: "#3B82F6",
+    shadowColor: "#3B82F6",
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
+  },
   topBar: {
     position: "absolute",
     top: 0,
