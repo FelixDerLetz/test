@@ -23,6 +23,24 @@ npm run android   # Android-Emulator
 
 > Kamerazugriff funktioniert nicht im Web-Simulator (`npm run web`) zuverlässig — zum Testen der Scan-Funktion ein echtes Gerät oder einen Emulator mit Kamera-Passthrough nutzen.
 
+## Wichtig: Testen in Expo Snack (Browser, ohne Installation)
+
+Snacks Git-Import scheitert aktuell oft an PNG-Dateien (Fehler `"$": Required`
+beim Datei-Upload). Da die Icons in Snack sowieso nicht sichtbar wären
+(Icon/Splash sieht man erst bei einem echten Build), beim Hochladen zu GitHub
+für den Snack-Test einfach den `assets/`-Ordner weglassen:
+
+- **Beim ersten Hochladen auf GitHub:** nur `App.tsx`, `app.json`,
+  `babel.config.js`, `package.json`, `tsconfig.json` und den `src/`-Ordner
+  hochladen — `assets/` beim Upload einfach nicht mit auswählen.
+- **Falls du schon ein Repo mit allem hast:** lösche dort nur den
+  `assets/`-Ordner wieder heraus (Ordner öffnen → jede Datei einzeln über
+  "..." → Delete file). Danach sollte der Snack-Import klappen.
+
+Für einen echten Build später (EAS Build, App Store/Play Store) bleibt der
+`assets/`-Ordner in deinem lokalen Projekt einfach bestehen — er wird nur für
+den Snack-Test kurzzeitig aus dem Repo rausgehalten.
+
 ## Projektstruktur
 
 ```
