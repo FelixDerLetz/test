@@ -48,16 +48,23 @@ scan-app/
 - Teilen-Funktion (native Share-Sheet)
 - Links direkt aus dem Ergebnis öffnen
 
-## Ideen für Phase 2 (der eigentliche Mehrwert gegenüber der reinen OS-Funktion)
+## Phase 2 — umgesetzt ✅
 
 Das hier ist der Teil, der ein Abo rechtfertigt — reines Scannen kann jedes Handy bereits selbst:
 
-- **Cloud-Sync** zwischen Geräten (z. B. Supabase, Firebase)
-- **Batch-Scan-Modus** für mehrere Codes hintereinander mit CSV/Excel-Export
-- **Dokumenten-Scan mit Kantenerkennung** (`react-native-document-scanner-plugin`) + PDF-Export
-- **OCR-Texterkennung** aus Fotos (z. B. `expo-text-recognition` oder ML-Kit-Bridge)
-- **Team-Ordner** zum gemeinsamen Sammeln von Scans
-- **Automatisierungen**: z. B. bei jedem WLAN-QR-Scan automatisch verbinden, bei vCard-QR automatisch Kontakt anlegen
+- **Batch-Scan-Modus**: Toggle oben rechts im Scan-Screen. Mehrere Codes werden ohne Unterbrechung hintereinander gesammelt statt nach jedem Scan ein Dialog zu zeigen.
+- **CSV-Export**: In der Batch-Zusammenfassung ("Batch ansehen") lässt sich die gesammelte Liste als CSV über das native Share-Sheet exportieren/versenden (Mail, WhatsApp, Dateien-App etc.).
+- **Smart Content Detection**: Erkennt automatisch WLAN-QR-Codes (zeigt SSID/Passwort), vCards (Name/Telefon/E-Mail antippbar), E-Mail-Adressen, Telefonnummern, SMS-Links und Standort-Codes (`geo:`) — und bietet direkt die passende Aktion statt nur Rohtext.
+
+Neue Dateien dafür: `src/contentDetector.ts` (Erkennungslogik), `src/export.ts` (CSV-Erzeugung), `src/screens/BatchSummaryScreen.tsx`.
+
+## Ideen für Phase 3 (brauchen einen eigenen Server bzw. native Module)
+
+- **Cloud-Sync** zwischen Geräten (z. B. Supabase, Firebase) — erfordert Backend + Login
+- **Dokumenten-Scan mit Kantenerkennung** (`react-native-document-scanner-plugin`) + PDF-Export — läuft nicht in Expo Go, braucht einen Dev-Build
+- **OCR-Texterkennung** aus Fotos (ML-Kit-Bridge) — ebenfalls nativer Code nötig
+- **Team-Ordner** zum gemeinsamen Sammeln von Scans — erfordert Backend
+- **Automatisches WLAN-Verbinden** bei WLAN-QR-Scan — aus Sicherheitsgründen von iOS/Android nur eingeschränkt bzw. gar nicht per App erlaubt
 
 ## Rechtliche Hinweise (Kurzfassung, siehe vorheriges Gespräch)
 
