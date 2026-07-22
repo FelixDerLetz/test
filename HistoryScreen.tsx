@@ -10,20 +10,41 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScanEntry } from "../types";
-import { loadHistory, deleteScan, toggleFavorite, clearHistory } from "../storage";
+import {
+  loadHistory,
+  deleteScan,
+  toggleFavorite,
+  clearHistory,
+  assignFolder,
+  setTags,
+} from "../storage";
+import { Folder, loadFolders, createFolder } from "../folders";
+import FolderTagSheet from "./FolderTagSheet";
 
 interface Props {
   onBack: () => void;
   refreshKey: number;
+  premium: boolean;
+  onNeedsPaywall: () => void;
 }
 
-export default function HistoryScreen({ onBack, refreshKey }: Props) {
+type FilterMode = "all" | "favorites" | { folderId: string };
+
+export default function HistoryScreen({
+  onBack,
+  refreshKey,
+  premium,
+  onNeedsPaywall,
+}: Props) {
   const [history, setHistory] = useState<ScanEntry[]>([]);
-  const [filter, setFilter] = useState<"all" | "favorites">("all");
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [filter, setFilter] = useState<FilterMode>("all");
+  const [organizingEntry, setOrganizingEntry] = useState<ScanEntry | null>(null);
 
   const refresh = useCallback(async () => {
-    const data = await loadHistory();
+    const [data, folderData] = await Promise.all([loadHistory(), loadFolders()]);
     setHistory(data);
+    setFolders(folderData);
   }, []);
 
   useEffect(() => {
@@ -66,8 +87,47 @@ export default function HistoryScreen({ onBack, refreshKey }: Props) {
     }
   };
 
-  const visibleHistory =
-    filter === "favorites" ? history.filter((h) => h.isFavorite) : history;
+  const handleOpenOrganize = (entry: ScanEntry) => {
+    if (!premium) {
+      onNeedsPaywall();
+      return;
+    }
+    setOrganizingEntry(entry);
+  };
+
+  const handleAssignFolder = async (folderId: string | null) => {
+    if (!organizingEntry) return;
+    const updated = await assignFolder(organizingEntry.id, folderId);
+    setHistory(updated);
+    setOrganizingEntry(updated.find((h) => h.id === organizingEntry.id) ?? null);
+  };
+
+  const handleCreateFolder = async (name: string) => {
+    const updatedFolders = await createFolder(name);
+    setFolders(updatedFolders);
+  };
+
+  const handleAddTag = async (tag: string) => {
+    if (!organizingEntry) return;
+    const nextTags = Array.from(new Set([...organizingEntry.tags, tag]));
+    const updated = await setTags(organizingEntry.id, nextTags);
+    setHistory(updated);
+    setOrganizingEntry(updated.find((h) => h.id === organizingEntry.id) ?? null);
+  };
+
+  const handleRemoveTag = async (tag: string) => {
+    if (!organizingEntry) return;
+    const nextTags = organizingEntry.tags.filter((t) => t !== tag);
+    const updated = await setTags(organizingEntry.id, nextTags);
+    setHistory(updated);
+    setOrganizingEntry(updated.find((h) => h.id === organizingEntry.id) ?? null);
+  };
+
+  const visibleHistory = history.filter((h) => {
+    if (filter === "all") return true;
+    if (filter === "favorites") return h.isFavorite;
+    return h.folderId === filter.folderId;
+  });
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -78,6 +138,8 @@ export default function HistoryScreen({ onBack, refreshKey }: Props) {
       minute: "2-digit",
     });
   };
+
+  const folderById = (id?: string | null) => folders.find((f) => f.id === id);
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
@@ -91,37 +153,58 @@ export default function HistoryScreen({ onBack, refreshKey }: Props) {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.filterRow}>
-        <TouchableOpacity
-          style={[styles.filterChip, filter === "all" && styles.filterChipActive]}
-          onPress={() => setFilter("all")}
-        >
-          <Text
-            style={[
-              styles.filterChipText,
-              filter === "all" && styles.filterChipTextActive,
-            ]}
-          >
-            Alle ({history.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            filter === "favorites" && styles.filterChipActive,
-          ]}
-          onPress={() => setFilter("favorites")}
-        >
-          <Text
-            style={[
-              styles.filterChipText,
-              filter === "favorites" && styles.filterChipTextActive,
-            ]}
-          >
-            ★ Favoriten ({history.filter((h) => h.isFavorite).length})
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <FlatList
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterRow}
+        contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
+        data={[{ key: "all" }, { key: "favorites" }, ...folders.map((f) => ({ key: f.id, folder: f }))]}
+        keyExtractor={(item) => item.key}
+        renderItem={({ item }) => {
+          if (item.key === "all") {
+            const active = filter === "all";
+            return (
+              <TouchableOpacity
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setFilter("all")}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  Alle ({history.length})
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+          if (item.key === "favorites") {
+            const active = filter === "favorites";
+            return (
+              <TouchableOpacity
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setFilter("favorites")}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                  ★ Favoriten ({history.filter((h) => h.isFavorite).length})
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+          const folder = item.folder!;
+          const active = typeof filter === "object" && filter.folderId === folder.id;
+          const count = history.filter((h) => h.folderId === folder.id).length;
+          return (
+            <TouchableOpacity
+              style={[
+                styles.filterChip,
+                active && { backgroundColor: folder.color },
+              ]}
+              onPress={() => setFilter({ folderId: folder.id })}
+            >
+              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                📁 {folder.name} ({count})
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
 
       <FlatList
         data={visibleHistory}
@@ -132,35 +215,73 @@ export default function HistoryScreen({ onBack, refreshKey }: Props) {
             <Text style={styles.emptyStateText}>
               {filter === "favorites"
                 ? "Noch keine Favoriten markiert."
+                : typeof filter === "object"
+                ? "In diesem Ordner ist noch nichts."
                 : "Noch keine Scans vorhanden."}
             </Text>
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardTop}>
-              <Text style={styles.cardType}>{item.type.toUpperCase()}</Text>
-              <Text style={styles.cardDate}>{formatDate(item.createdAt)}</Text>
+        renderItem={({ item }) => {
+          const folder = folderById(item.folderId);
+          return (
+            <View style={styles.card}>
+              <View style={styles.cardTop}>
+                <Text style={styles.cardType}>{item.type.toUpperCase()}</Text>
+                <Text style={styles.cardDate}>{formatDate(item.createdAt)}</Text>
+              </View>
+              <Text style={styles.cardValue} numberOfLines={2}>
+                {item.value}
+              </Text>
+
+              {(folder || item.tags.length > 0) && (
+                <View style={styles.badgeRow}>
+                  {folder && (
+                    <View style={[styles.folderBadge, { backgroundColor: folder.color }]}>
+                      <Text style={styles.folderBadgeText}>📁 {folder.name}</Text>
+                    </View>
+                  )}
+                  {item.tags.map((tag) => (
+                    <View key={tag} style={styles.tagBadge}>
+                      <Text style={styles.tagBadgeText}>#{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.cardActions}>
+                <TouchableOpacity onPress={() => handleToggleFavorite(item.id)}>
+                  <Text style={styles.actionText}>
+                    {item.isFavorite ? "★ Favorit" : "☆ Merken"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleOpenOrganize(item)}>
+                  <Text style={styles.actionText}>
+                    🗂️ Organisieren{!premium ? " ✦" : ""}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleShare(item)}>
+                  <Text style={styles.actionText}>Teilen</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDelete(item.id)}>
+                  <Text style={[styles.actionText, styles.deleteText]}>Löschen</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={styles.cardValue} numberOfLines={2}>
-              {item.value}
-            </Text>
-            <View style={styles.cardActions}>
-              <TouchableOpacity onPress={() => handleToggleFavorite(item.id)}>
-                <Text style={styles.actionText}>
-                  {item.isFavorite ? "★ Favorit" : "☆ Merken"}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleShare(item)}>
-                <Text style={styles.actionText}>Teilen</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete(item.id)}>
-                <Text style={[styles.actionText, styles.deleteText]}>Löschen</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+          );
+        }}
       />
+
+      {organizingEntry && (
+        <FolderTagSheet
+          entry={organizingEntry}
+          folders={folders}
+          onAssignFolder={handleAssignFolder}
+          onAddTag={handleAddTag}
+          onRemoveTag={handleRemoveTag}
+          onCreateFolder={handleCreateFolder}
+          onClose={() => setOrganizingEntry(null)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -178,12 +299,7 @@ const styles = StyleSheet.create({
   backButtonText: { color: "#3B82F6", fontSize: 16, fontWeight: "600" },
   title: { color: "#fff", fontSize: 18, fontWeight: "700" },
   clearText: { color: "#EF4444", fontSize: 15, fontWeight: "600" },
-  filterRow: {
-    flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 20,
-    marginBottom: 8,
-  },
+  filterRow: { flexGrow: 0, marginBottom: 8 },
   filterChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -209,8 +325,18 @@ const styles = StyleSheet.create({
   },
   cardType: { color: "#3B82F6", fontSize: 12, fontWeight: "700" },
   cardDate: { color: "#64748B", fontSize: 12 },
-  cardValue: { color: "#fff", fontSize: 15, marginBottom: 12 },
-  cardActions: { flexDirection: "row", gap: 20 },
+  cardValue: { color: "#fff", fontSize: 15, marginBottom: 10 },
+  badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 10 },
+  folderBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  folderBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  tagBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(59,130,246,0.2)",
+  },
+  tagBadgeText: { color: "#93C5FD", fontSize: 11, fontWeight: "700" },
+  cardActions: { flexDirection: "row", gap: 16, flexWrap: "wrap" },
   actionText: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
   deleteText: { color: "#EF4444" },
 });

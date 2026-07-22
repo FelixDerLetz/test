@@ -18,6 +18,8 @@ export interface ScanEntry {
   createdAt: number; // Unix timestamp (ms)
   isFavorite: boolean;
   note?: string;
+  folderId?: string | null;
+  tags: string[];
 }
 
 export type RootScreen = "scan" | "history" | "detail";

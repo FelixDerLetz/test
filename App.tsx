@@ -1,21 +1,34 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
+import { View, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import ScanScreen from "./src/screens/ScanScreen";
 import HistoryScreen from "./src/screens/HistoryScreen";
 import ResultSheet from "./src/screens/ResultSheet";
 import BatchSummaryScreen from "./src/screens/BatchSummaryScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
+import GenerateScreen from "./src/screens/GenerateScreen";
+import StatsScreen from "./src/screens/StatsScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
+import PaywallScreen from "./src/screens/PaywallScreen";
+import TabBar, { TabKey } from "./src/components/TabBar";
+
 import { addScan } from "./src/storage";
-import { RootScreen, ScanEntry, ScanType } from "./src/types";
+import { isPremium } from "./src/premium";
+import { ScanEntry, ScanType } from "./src/types";
 
 const ONBOARDING_KEY = "@scan_app/onboarding_seen";
 
-type Screen = RootScreen | "batch";
+type Overlay = "none" | "batch" | "settings" | "paywall";
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("scan");
+  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+
+  const [tab, setTab] = useState<TabKey>("scan");
+  const [overlay, setOverlay] = useState<Overlay>("none");
+
   const [lastResult, setLastResult] = useState<{ value: string; type: string } | null>(
     null
   );
@@ -24,12 +37,17 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false);
   const [batch, setBatch] = useState<ScanEntry[]>([]);
 
-  const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
+  const [premium, setPremiumState] = useState(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(ONBOARDING_KEY).then((value) => {
-      setShowOnboarding(value !== "true");
-    });
+    (async () => {
+      const [onboardingSeen, premiumStatus] = await Promise.all([
+        AsyncStorage.getItem(ONBOARDING_KEY),
+        isPremium(),
+      ]);
+      setShowOnboarding(onboardingSeen !== "true");
+      setPremiumState(premiumStatus);
+    })();
   }, []);
 
   const handleOnboardingDone = () => {
@@ -43,8 +61,6 @@ export default function App() {
       setHistoryRefreshKey((k) => k + 1);
 
       if (batchMode) {
-        // Im Batch-Modus: neu gespeicherten Eintrag zur aktuellen Session hinzufügen,
-        // aber KEIN Ergebnis-Sheet zeigen — das würde den Scan-Fluss unterbrechen.
         const justAdded = updated[0];
         setBatch((prev) => [justAdded, ...prev]);
       } else {
@@ -54,53 +70,106 @@ export default function App() {
     [batchMode]
   );
 
-  const handleToggleBatchMode = () => {
-    setBatchMode((v) => !v);
+  const refreshPremium = useCallback(async () => {
+    setPremiumState(await isPremium());
+  }, []);
+
+  const handleTabPress = (nextTab: TabKey) => {
+    if ((nextTab === "generate" || nextTab === "stats") && !premium) {
+      setOverlay("paywall");
+      return;
+    }
+    setTab(nextTab);
   };
 
-  const handleRemoveFromBatch = (id: string) => {
-    setBatch((prev) => prev.filter((b) => b.id !== id));
-  };
+  if (showOnboarding === null) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.blank} />
+      </SafeAreaProvider>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <OnboardingScreen onDone={handleOnboardingDone} />
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-
-      {showOnboarding === null ? null : showOnboarding ? (
-        <OnboardingScreen onDone={handleOnboardingDone} />
-      ) : (
-        <>
-          {screen === "scan" && (
-            <ScanScreen
-              onScanned={handleScanned}
-              onOpenHistory={() => setScreen("history")}
-              batchMode={batchMode}
-              onToggleBatchMode={handleToggleBatchMode}
-              batchCount={batch.length}
-              onOpenBatch={() => setScreen("batch")}
+      <View style={styles.root}>
+        <View style={styles.content}>
+          {overlay === "settings" ? (
+            <SettingsScreen
+              onBack={() => setOverlay("none")}
+              onNeedsPaywall={() => setOverlay("paywall")}
             />
+          ) : (
+            <>
+              {tab === "scan" && (
+                <ScanScreen
+                  onScanned={handleScanned}
+                  onOpenHistory={() => setTab("history")}
+                  batchMode={batchMode}
+                  onToggleBatchMode={() => setBatchMode((v) => !v)}
+                  batchCount={batch.length}
+                  onOpenBatch={() => setOverlay("batch")}
+                />
+              )}
+              {tab === "generate" && <GenerateScreen />}
+              {tab === "stats" && <StatsScreen refreshKey={historyRefreshKey} />}
+              {tab === "history" && (
+                <HistoryScreen
+                  onBack={() => setTab("scan")}
+                  refreshKey={historyRefreshKey}
+                  premium={premium}
+                  onNeedsPaywall={() => setOverlay("paywall")}
+                />
+              )}
+            </>
           )}
+        </View>
 
-          {screen === "history" && (
-            <HistoryScreen
-              onBack={() => setScreen("scan")}
-              refreshKey={historyRefreshKey}
-            />
-          )}
+        {overlay !== "settings" && (
+          <TabBar active={tab} onChange={handleTabPress} onSettings={() => setOverlay("settings")} />
+        )}
+      </View>
 
-          {screen === "batch" && (
-            <BatchSummaryScreen
-              batch={batch}
-              onRemove={handleRemoveFromBatch}
-              onDone={() => setScreen("scan")}
-            />
-          )}
+      {overlay === "batch" && (
+        <View style={styles.overlayFill}>
+          <BatchSummaryScreen
+            batch={batch}
+            onRemove={(id) => setBatch((prev) => prev.filter((b) => b.id !== id))}
+            onDone={() => setOverlay("none")}
+          />
+        </View>
+      )}
 
-          {screen === "scan" && !batchMode && lastResult && (
-            <ResultSheet entry={lastResult} onClose={() => setLastResult(null)} />
-          )}
-        </>
+      {overlay === "paywall" && (
+        <PaywallScreen
+          onClose={() => setOverlay("none")}
+          onActivated={async () => {
+            await refreshPremium();
+            setOverlay("none");
+          }}
+        />
+      )}
+
+      {tab === "scan" && overlay === "none" && !batchMode && lastResult && (
+        <ResultSheet entry={lastResult} onClose={() => setLastResult(null)} />
       )}
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  blank: { flex: 1, backgroundColor: "#0F172A" },
+  root: { flex: 1, backgroundColor: "#0F172A" },
+  content: { flex: 1 },
+  overlayFill: { ...StyleSheet.absoluteFillObject, backgroundColor: "#0F172A" },
+});

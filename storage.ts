@@ -23,7 +23,7 @@ export async function loadHistory(): Promise<ScanEntry[]> {
  * Vermeidet Duplikate innerhalb der letzten 3 Sekunden (Doppel-Scan-Schutz).
  */
 export async function addScan(
-  entry: Omit<ScanEntry, "id" | "createdAt" | "isFavorite">
+  entry: Omit<ScanEntry, "id" | "createdAt" | "isFavorite" | "tags">
 ): Promise<ScanEntry[]> {
   const history = await loadHistory();
 
@@ -39,9 +39,46 @@ export async function addScan(
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     createdAt: Date.now(),
     isFavorite: false,
+    tags: [],
   };
 
   const updated = [newEntry, ...history];
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+/**
+ * Weist einen Scan einem Ordner zu (oder entfernt ihn per null).
+ */
+export async function assignFolder(
+  id: string,
+  folderId: string | null
+): Promise<ScanEntry[]> {
+  const history = await loadHistory();
+  const updated = history.map((h) => (h.id === id ? { ...h, folderId } : h));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+/**
+ * Setzt die komplette Tag-Liste eines Scans neu.
+ */
+export async function setTags(id: string, tags: string[]): Promise<ScanEntry[]> {
+  const history = await loadHistory();
+  const updated = history.map((h) => (h.id === id ? { ...h, tags } : h));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+/**
+ * Entfernt eine Ordner-Zuweisung von allen Scans, die diesem Ordner
+ * zugeordnet sind (z. B. wenn der Ordner selbst gelöscht wird).
+ */
+export async function unassignFolderFromAll(folderId: string): Promise<ScanEntry[]> {
+  const history = await loadHistory();
+  const updated = history.map((h) =>
+    h.folderId === folderId ? { ...h, folderId: null } : h
+  );
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   return updated;
 }

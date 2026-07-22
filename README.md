@@ -84,6 +84,30 @@ Neue Dateien dafür: `src/contentDetector.ts` (Erkennungslogik), `src/export.ts`
 
 Die Icon-Assets sind bewusst simpel gehalten (Scan-Rahmen-Motiv in Blau/Dunkelblau) — ein professionelles Branding würdest du eher mit einem Designer oder Tool wie Figma verfeinern, bevor du live gehst.
 
+## Premium-Features — umgesetzt ✅
+
+Alle drei laufen komplett offline, keine Server-Anbindung nötig:
+
+- **QR-Code-Generator** (`src/screens/GenerateScreen.tsx`): erstellt QR-Codes für Links, WLAN-Zugänge, Kontakte (vCard) und freien Text. Export als Bild (via `react-native-view-shot`) oder als reiner Text/Inhalt über das native Share-Sheet.
+- **Statistik-Dashboard** (`src/screens/StatsScreen.tsx`): zeigt Scans der letzten 7 Tage als Balkendiagramm, Aufschlüsselung nach Code-Typ und Kennzahlen (gesamt/heute/Favoriten) — alles aus den lokal gespeicherten Daten berechnet, keine externen Chart-Bibliotheken nötig.
+- **Ordner & Tags** (`src/folders.ts`, `src/screens/FolderTagSheet.tsx`): Scans lassen sich im Verlauf über "🗂️ Organisieren" in eigene Ordner einsortieren und mit beliebig vielen Tags versehen. Der Verlauf bekommt dafür eine Ordner-Filterleiste oben (neben "Alle"/"Favoriten").
+
+Zugriff: Tab-Leiste unten (Erstellen ✦, Statistik ✦) für die ersten beiden. Ordner & Tags sind direkt im Verlauf integriert — jede Karte hat einen "Organisieren"-Button, der bei fehlendem Premium-Status den Paywall-Screen öffnet.
+
+### Wie die Freischaltung funktioniert (wichtig!)
+
+`src/premium.ts` enthält aktuell nur einen **lokalen Demo-Schalter** (`setPremium(true)`), der in den Einstellungen bzw. im Paywall-Screen über "Premium freischalten (Demo)" gesetzt wird. **Das ist kein echtes Bezahlmodell** — jeder kann es durch Neuinstallation umgehen. Für den echten Store-Release muss das ersetzt werden durch:
+
+- **RevenueCat** (empfohlen — verwaltet Abo-Logik, Kündigung, Familienfreigabe etc. für dich) oder
+- **`expo-in-app-purchases`** direkt gegen Apple/Google In-App-Käufe
+
+Die Kauflogik läuft dabei komplett über Apple/Google (kein eigener Server nötig) — das passt weiterhin zu "komplett lokal", nur die Zahlungsabwicklung selbst liegt zwangsläufig bei den Stores (eigene Kreditkartenabwicklung in Apps ist ohnehin gegen die Store-Richtlinien).
+
+### Testen — Einschränkungen in Snack
+
+- **QR-Bild-Export**: `react-native-view-shot` funktioniert in Expo Go auf echten Geräten; im Snack-Web-Preview ggf. eingeschränkt.
+- **Statistik-Dashboard & Ordner/Tags**: laufen überall problemlos, reine JS-Berechnung bzw. AsyncStorage.
+
 ## Ideen für Phase 3 (brauchen einen eigenen Server bzw. native Module)
 
 - **Cloud-Sync** zwischen Geräten (z. B. Supabase, Firebase) — erfordert Backend + Login
